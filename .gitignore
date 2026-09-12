@@ -1,0 +1,34 @@
+# Build output
+build/
+build-*/
+out/
+bin/
+cmake-build-*/
+
+# CMake artifacts (in case anything builds in-tree)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+_deps/
+Makefile
+
+# Compiled binaries / objects
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.pdb
+
+# Editor / OS cruft
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
