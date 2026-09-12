@@ -1,0 +1,95 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            binary: underwatch
+          - os: macos-latest
+            name: macos
+            binary: underwatch
+          - os: windows-latest
+            name: windows
+            binary: underwatch.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        # Vendoring SDL3 from source keeps the build self-contained and identical
+        # across all three runners, instead of depending on whatever (if anything)
+        # is preinstalled on each image.
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUNDERWATCH_VENDOR_SDL3=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ -f "build/Release/${{ matrix.binary }}" ]; then
+            cp "build/Release/${{ matrix.binary }}" dist/
+          else
+            cp "build/${{ matrix.binary }}" dist/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: underwatch-${{ matrix.name }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      HAS_BUTLER_KEY: ${{ secrets.BUTLER_API_KEY != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Zip each platform's build
+        run: |
+          cd artifacts
+          for dir in */; do
+            name="${dir%/}"
+            (cd "$name" && zip -r "../${name}.zip" .)
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install butler
+        if: env.HAS_BUTLER_KEY == 'true'
+        run: |
+          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip butler.zip -d butler
+          chmod +x butler/butler
+          ./butler/butler -V
+
+      - name: Publish to itch.io
+        if: env.HAS_BUTLER_KEY == 'true'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler/butler push artifacts/underwatch-linux.zip zafuzi/underwatch:linux
+          ./butler/butler push artifacts/underwatch-macos.zip zafuzi/underwatch:mac
+          ./butler/butler push artifacts/underwatch-windows.zip zafuzi/underwatch:windows
