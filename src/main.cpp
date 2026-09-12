@@ -34,6 +34,8 @@ static const float CAPTURE_RATE_PER_SEC = 100.0f / CAPTURE_TIME_SECONDS;
 enum class Team { A = 0, B = 1 };
 enum class Role { Tank = 0, Damage = 1, Healer = 2 };
 
+static constexpr float PI = 3.14159265358979323846f; // M_PI isn't defined by MSVC without _USE_MATH_DEFINES
+
 struct Vec2 { float x = 0, y = 0; };
 
 static float vlen(Vec2 v) { return std::sqrt(v.x * v.x + v.y * v.y); }
@@ -139,7 +141,7 @@ static void drawCircleOutline(SDL_Renderer* r, float cx, float cy, float radius,
     std::vector<SDL_FPoint> pts;
     pts.reserve(segments + 1);
     for (int i = 0; i <= segments; i++) {
-        float a = (float)i / segments * 2.0f * (float)M_PI;
+        float a = (float)i / segments * 2.0f * PI;
         pts.push_back({cx + std::cos(a) * radius, cy + std::sin(a) * radius});
     }
     SDL_RenderLines(r, pts.data(), (int)pts.size());
@@ -176,7 +178,7 @@ static void drawPolygonOutline(SDL_Renderer* r, const std::vector<Vec2>& pts) {
 static std::vector<Vec2> hexagonPoints(Vec2 center, float r) {
     std::vector<Vec2> pts;
     for (int i = 0; i < 6; i++) {
-        float a = i * (float)M_PI / 3.0f;
+        float a = i * PI / 3.0f;
         pts.push_back({ center.x + r * std::cos(a), center.y + r * std::sin(a) });
     }
     return pts;
@@ -461,7 +463,7 @@ static void initGame(Game& g) {
         int slot = (p.team == Team::A) ? teamACount++ : teamBCount++;
         float baseY = ARENA_Y0 + 100 + slot * 130;
         p.spawnPos = { baseX, baseY };
-        p.angle = (p.team == Team::A) ? 0.0f : (float)M_PI;
+        p.angle = (p.team == Team::A) ? 0.0f : PI;
 
         resetPlayer(p);
         g.players.push_back(p);
@@ -513,8 +515,8 @@ static void audioCallback(void* userdata, SDL_AudioStream* stream, int additiona
             float raw = (t.waveform == 1) ? (std::sin(t.phase) >= 0.0f ? 1.0f : -1.0f) : std::sin(t.phase);
             buf[i] += raw * t.volume * envelope;
 
-            t.phase += 2.0f * (float)M_PI * t.freq / AUDIO_SAMPLE_RATE;
-            if (t.phase > 2.0f * (float)M_PI) t.phase -= 2.0f * (float)M_PI;
+            t.phase += 2.0f * PI * t.freq / AUDIO_SAMPLE_RATE;
+            if (t.phase > 2.0f * PI) t.phase -= 2.0f * PI;
             t.freq += t.freqSlidePerSample;
             if (t.freq < 20.0f) t.freq = 20.0f;
             t.samplesLeft--;

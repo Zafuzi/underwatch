@@ -27,6 +27,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Linux build dependencies
+        # Building SDL3 from source on Linux needs the X11/Wayland (and audio)
+        # dev headers present; the bare ubuntu-latest image doesn't ship them.
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libxcursor-dev libxss-dev libxfixes-dev libxtst-dev libxkbcommon-dev \
+            wayland-protocols libwayland-dev libegl1-mesa-dev \
+            libdbus-1-dev libudev-dev libasound2-dev libpulse-dev
+
       - name: Configure
         # Vendoring SDL3 from source keeps the build self-contained and identical
         # across all three runners, instead of depending on whatever (if anything)
