@@ -67,6 +67,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     env:
       HAS_BUTLER_KEY: ${{ secrets.BUTLER_API_KEY != '' }}
     steps:
@@ -83,6 +85,9 @@ jobs:
           done
 
       - name: Create GitHub Release
+        # Independent of the itch.io publish below: a GitHub-side failure here
+        # (permissions, API hiccup, etc.) shouldn't stop the itch.io push.
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*.zip
@@ -90,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install butler
-        if: env.HAS_BUTLER_KEY == 'true'
+        if: always() && env.HAS_BUTLER_KEY == 'true'
         run: |
           curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
           unzip butler.zip -d butler
@@ -98,7 +103,7 @@ jobs:
           ./butler/butler -V
 
       - name: Publish to itch.io
-        if: env.HAS_BUTLER_KEY == 'true'
+        if: always() && env.HAS_BUTLER_KEY == 'true'
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
