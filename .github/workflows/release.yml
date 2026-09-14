@@ -63,8 +63,38 @@ jobs:
           name: underwatch-${{ matrix.name }}
           path: dist/*
 
+  build-wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.9
+
+      - name: Configure
+        # Same reasoning as the vendored-SDL3 path above: there's no system SDL3
+        # for wasm, so it's always built from source against the Emscripten toolchain.
+        run: emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-wasm --parallel
+
+      - name: Stage build
+        run: |
+          mkdir -p dist
+          cp build-wasm/underwatch.html build-wasm/underwatch.js build-wasm/underwatch.wasm dist/
+          # itch.io's HTML5 embed looks for index.html by default.
+          cp build-wasm/underwatch.html dist/index.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: underwatch-wasm
+          path: dist/*
+
   release:
-    needs: build
+    needs: [build, build-wasm]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -110,3 +140,4 @@ jobs:
           ./butler/butler push artifacts/underwatch-linux.zip zafuzi/underwatch:linux
           ./butler/butler push artifacts/underwatch-macos.zip zafuzi/underwatch:mac
           ./butler/butler push artifacts/underwatch-windows.zip zafuzi/underwatch:windows
+          ./butler/butler push artifacts/underwatch-wasm.zip zafuzi/underwatch:html5

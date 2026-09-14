@@ -10,7 +10,8 @@ visual is drawn as vector shapes (lines/circles/polygons) and a built-in
 blocky font — no sprites, images, or font files. All sound effects are
 synthesized tones at runtime — no audio files either.
 
-See [BUILD.md](BUILD.md) for how to build/run on Linux, Windows, and macOS.
+See [BUILD.md](BUILD.md) for how to build/run on Linux, Windows, macOS, and
+WebAssembly (browser).
 
 ## Controls
 

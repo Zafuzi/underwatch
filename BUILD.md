@@ -70,3 +70,26 @@ this dev environment).
 cmake -S . -B build-static -DUNDERWATCH_VENDOR_SDL3=ON
 cmake --build build-static -j
 ```
+
+## WebAssembly (browser)
+
+Requires the [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html)
+installed and activated (`source /path/to/emsdk/emsdk_env.sh`).
+
+```bash
+emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
+cmake --build build-wasm -j
+```
+
+This vendors and builds SDL3 from source against the Emscripten toolchain
+(same as the Windows/macOS path — there's no system SDL3 for wasm to find),
+and produces `build-wasm/underwatch.html` + `underwatch.js` + `underwatch.wasm`.
+Serve the directory with any static file server and open `underwatch.html`:
+
+```bash
+python3 -m http.server -d build-wasm 8000
+# then open http://localhost:8000/underwatch.html
+```
+
+It can't be opened directly via `file://` — browsers block `fetch()` of the
+`.wasm` file from a local file path.

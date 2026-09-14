@@ -12,6 +12,10 @@
 #include <ctime>
 #include <string>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 // ---------------------------------------------------------------------------
 // Constants / world setup
 // ---------------------------------------------------------------------------
@@ -1145,42 +1149,32 @@ struct Input {
 // Main
 // ---------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
-    (void)argc; (void)argv;
-
-    std::srand((unsigned)std::time(nullptr));
-
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-        SDL_Log("SDL_Init failed: %s", SDL_GetError());
-        return 1;
-    }
-
-    SDL_Window* window = SDL_CreateWindow("Underwatch (minimal prototype)", WINDOW_W, WINDOW_H, 0);
-    if (!window) { SDL_Log("CreateWindow failed: %s", SDL_GetError()); return 1; }
-
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) { SDL_Log("CreateRenderer failed: %s", SDL_GetError()); return 1; }
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-
-    SDL_AudioSpec audioSpec{ SDL_AUDIO_F32, 1, AUDIO_SAMPLE_RATE };
-    g_audioStream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audioSpec, audioCallback, nullptr);
-    if (g_audioStream) SDL_ResumeAudioStreamDevice(g_audioStream);
-    else SDL_Log("Audio unavailable: %s", SDL_GetError());
-
+// Holds everything a frame needs; passed to mainLoopIter so the same per-frame
+// logic can run either from a native `while` loop or from an Emscripten
+// browser callback (which can't block on a loop - the browser drives frames).
+struct App {
+    SDL_Renderer* renderer = nullptr;
     Game game;
-    initGame(game);
-
     bool running = true;
     bool paused = false;
-    Uint64 lastTicks = SDL_GetTicks();
-
+    Uint64 lastTicks = 0;
     bool prevQ = false, prevRightEdge = false;
+};
 
-    while (running) {
+static void mainLoopIter(void* arg) {
+    App& app = *static_cast<App*>(arg);
+    SDL_Renderer* renderer = app.renderer;
+    Game& game = app.game;
+    bool& running = app.running;
+    bool& paused = app.paused;
+    bool& prevQ = app.prevQ;
+    bool& prevRightEdge = app.prevRightEdge;
+
+    {
         Uint64 now = SDL_GetTicks();
-        float dt = (now - lastTicks) / 1000.0f;
+        float dt = (now - app.lastTicks) / 1000.0f;
         if (dt > 0.05f) dt = 0.05f; // clamp big pauses
-        lastTicks = now;
+        app.lastTicks = now;
 
         static Input input;
         SDL_Event ev;
@@ -1571,6 +1565,47 @@ int main(int argc, char** argv) {
 
         SDL_RenderPresent(renderer);
     }
+
+#ifdef __EMSCRIPTEN__
+    if (!running) emscripten_cancel_main_loop();
+#endif
+}
+
+int main(int argc, char** argv) {
+    (void)argc; (void)argv;
+
+    std::srand((unsigned)std::time(nullptr));
+
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        SDL_Log("SDL_Init failed: %s", SDL_GetError());
+        return 1;
+    }
+
+    SDL_Window* window = SDL_CreateWindow("Underwatch (minimal prototype)", WINDOW_W, WINDOW_H, 0);
+    if (!window) { SDL_Log("CreateWindow failed: %s", SDL_GetError()); return 1; }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
+    if (!renderer) { SDL_Log("CreateRenderer failed: %s", SDL_GetError()); return 1; }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    SDL_AudioSpec audioSpec{ SDL_AUDIO_F32, 1, AUDIO_SAMPLE_RATE };
+    g_audioStream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audioSpec, audioCallback, nullptr);
+    if (g_audioStream) SDL_ResumeAudioStreamDevice(g_audioStream);
+    else SDL_Log("Audio unavailable: %s", SDL_GetError());
+
+    App app;
+    app.renderer = renderer;
+    initGame(app.game);
+    app.lastTicks = SDL_GetTicks();
+
+#ifdef __EMSCRIPTEN__
+    // The browser drives the frame rate; this call doesn't return (it unwinds
+    // the stack internally), so the cleanup below never runs in a wasm build -
+    // that's fine, the browser tears the whole runtime down when the tab closes.
+    emscripten_set_main_loop_arg(mainLoopIter, &app, 0, 1);
+#else
+    while (app.running) mainLoopIter(&app);
+#endif
 
     if (g_audioStream) SDL_DestroyAudioStream(g_audioStream);
     SDL_DestroyRenderer(renderer);

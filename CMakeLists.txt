@@ -22,8 +22,10 @@ endif()
 # On Windows/macOS there's no guarantee SDL3 is installed on the machine that
 # runs the game, so build SDL3 from source and link it in statically instead
 # of shipping/loading SDL3.dll / libSDL3.dylib alongside the executable.
+# Emscripten (wasm) always needs the from-source build too, since there's no
+# system SDL3 package to find on that target.
 option(UNDERWATCH_VENDOR_SDL3 "Build SDL3 from source and link it in statically" "${WIN32}")
-if(APPLE)
+if(APPLE OR EMSCRIPTEN)
   set(UNDERWATCH_VENDOR_SDL3 ON CACHE BOOL "" FORCE)
 endif()
 
@@ -49,4 +51,12 @@ target_link_libraries(underwatch PRIVATE SDL3::SDL3)
 # MinGW: fold in libgcc/libstdc++/winpthreads so the .exe has no extra DLL dependencies.
 if(MINGW)
   target_link_options(underwatch PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
+# Emscripten: produce underwatch.html (+ .js/.wasm alongside it) instead of a
+# native binary. ALLOW_MEMORY_GROWTH is needed since the game's vectors of
+# players/projectiles aren't bounded ahead of time.
+if(EMSCRIPTEN)
+  set_target_properties(underwatch PROPERTIES SUFFIX ".html")
+  target_link_options(underwatch PRIVATE -sALLOW_MEMORY_GROWTH=1)
 endif()
